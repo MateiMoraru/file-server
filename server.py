@@ -25,7 +25,7 @@ class Server:
         signup = self.recv(conn)
         
         if signup == 'yes':
-            self.signup()
+            self.signup(conn)
         else:
             self.login(conn)
 
@@ -33,32 +33,31 @@ class Server:
     def signup(self, conn: socket.socket):
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
-        password = credentials.split(' ')[1]
 
         users_file_name = "login.txt"
     
         try:
             users_file = open(users_file_name, 'r', encoding = self.ENCODING)
-
-        except FileExistsError:
+        except FileNotFoundError:
             print("User file not found, creating one")
-
             users_file = open(users_file_name, 'w+', encoding = self.ENCODING)
             
         users_data = users_file.readlines()
 
         for line in users_data:
-            if username in line:
-                data = line.split(' ')
-                
-                if username == data[0]:
-                    self.send(conn, "Account Already Exists")
-                    
-                    self.signup(conn)
+            fin_username = line.split(' ')[0]
+            print(fin_username, username)
+            if username == fin_username:
+                self.send(conn, "Account Already Exists")
+                self.signup(conn)
+                return
         
-        users_file = open(users_file_name, 'w', encoding = self.ENCODING)
-        users_file.write(credentials)
+        users_file = open(users_file_name, 'a', encoding = self.ENCODING)
+        users_file.write(credentials + ' user\n')
+        users_file.close()
         self.send(conn, "Account Created Successfully")
+
+        self.login(conn)
 
 
     def login(self, conn: socket.socket, count: int = 0):
@@ -66,24 +65,31 @@ class Server:
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
 
+        print(0)
+
         users_file_name = "login.txt"
     
         try:
             users_file = open(users_file_name, 'r', encoding= self.ENCODING)
 
-        except FileExistsError:
-            print("User file not found, creating one")
-
-            users_file = open(users_file_name, 'w+', encoding= self.ENCODING)
+        except FileNotFoundError:
+            print(FileNotFoundError)
             
         users_data = users_file.readlines()
+
+        print(1)
         
         for line in users_data:
             if username in line:
                 data = line.split(' ')
+                print(2)
                 
                 if username == data[0] and password == data[1]:
+                    print("sa moara ma sa")
                     self.send(conn, "Logged In Successfully")
+                    print(1)
+                    self.send(conn, data[2]) #User rights
+                    print(2)
                     return True
                 
         if count <= 2:
@@ -99,7 +105,7 @@ class Server:
         bytes = message.encode(self.ENCODING)
         bytes_sent = conn.send(bytes)
 
-        if len(bytes) != len(bytes_sent):
+        if bytes != bytes_sent:
             return False
         
         return True
@@ -110,3 +116,8 @@ class Server:
             return message
         except TimeoutError as e:
             print(e)
+
+if __name__ == "__main__":
+    server = Server()
+    server.run()
+    
