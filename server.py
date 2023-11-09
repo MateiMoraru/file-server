@@ -1,4 +1,4 @@
-import socket, os
+import socket, os, time
 
 class Server:
     BUFFER_SIZE = 4096
@@ -6,13 +6,13 @@ class Server:
 
     def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
         self.addr = (ip, port)
         
 
     def run(self):
         self.socket.bind(self.addr)
         self.socket.listen()
+        print(f"Server Listening For Connections on {self.addr}.")
         
         while True:
             conn, addr = self.socket.accept()
@@ -22,15 +22,38 @@ class Server:
 
     def handle_conn(self, conn: socket.socket):
         logged = False
+        user_name = "None"
+        user_rights = "None"
+        path = 'server/'
+
         signup = self.recv(conn)
         
         if signup == 'yes':
             self.signup(conn)
+            user_name, user_rights = self.login(conn)
         else:
-            self.login(conn)
+            user_name, user_rights = self.login(conn)
+
+        while True:
+            command = self.recv(conn).split(' ')
+
+            if command[0] == "create":
+                if command[1] == "repo":
+                    os.mkdir(path + command[2])
+                    self.send(conn, f"Created repo {command[2]}")
+                elif command[1] == "file":
+                    open(path + command[2], 'w').close()
+                    self.send(conn, f"Created file {command[2]}")
+                else:
+                    self.send(conn, f"Wrong Usage, run help")
+
+            if command[0] == "kill" or command[0] == "k":
+                self.send(conn, "Destroy Client")
+                print(f"{user_rights} {user_name} Disconnected")
 
         
     def signup(self, conn: socket.socket):
+        print("Signup")
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
 
@@ -46,7 +69,6 @@ class Server:
 
         for line in users_data:
             fin_username = line.split(' ')[0]
-            print(fin_username, username)
             if username == fin_username:
                 self.send(conn, "Account Already Exists")
                 self.signup(conn)
@@ -57,15 +79,12 @@ class Server:
         users_file.close()
         self.send(conn, "Account Created Successfully")
 
-        self.login(conn)
-
 
     def login(self, conn: socket.socket, count: int = 0):
+        print("Login")
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
-
-        print(0)
 
         users_file_name = "login.txt"
     
@@ -77,20 +96,16 @@ class Server:
             
         users_data = users_file.readlines()
 
-        print(1)
         
         for line in users_data:
             if username in line:
                 data = line.split(' ')
-                print(2)
-                
                 if username == data[0] and password == data[1]:
-                    print("sa moara ma sa")
                     self.send(conn, "Logged In Successfully")
-                    print(1)
-                    self.send(conn, data[2]) #User rights
-                    print(2)
-                    return True
+                    user_rights = data[2][0:len(data[2]) - 1] #\n at the end of data[2]
+                    time.sleep(.1)
+                    self.send(conn, user_rights) #User rights
+                    return (username, user_rights)
                 
         if count <= 2:
             self.send(conn, "Wrong Credentials")
