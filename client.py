@@ -37,7 +37,9 @@ class Client:
                 self.send(command)
 
                 response = self.recv()
-                print(response)
+                if '-w' in response:
+                    response = response[0:len(response) - 2]
+                    print(response)
                 
                 if response == "Destroy Client":
                     self.socket.close()
@@ -91,10 +93,10 @@ class Client:
 
     
     def send(self, message: str):
-        bytes = message.encode(self.ENCODING)
-        bytes_sent = self.socket.send(bytes)
+        bytes_all = message.encode(self.ENCODING)
+        bytes_sent = self.socket.send(bytes_all)
 
-        if bytes != bytes_sent:
+        if bytes_all != bytes_sent:
             return False
         
         return True
