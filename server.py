@@ -48,6 +48,8 @@ class Server:
                 self.handle_set(command, user_name, user_rights, conn)
             elif command[0] == 'add-admin':
                 self.handle_admin(command, user_rights, conn)
+            elif command[0] == 'cat':
+                self.handle_cat(command, path, user_name, user_rights, conn)
             elif command[0] == "kill" or command[0] == "k":
                 self.send(conn, "Destroy Client")
                 print(f"{user_rights} {user_name} Disconnected")
@@ -68,6 +70,13 @@ class Server:
         else:
             self.send(conn, "You Don't Have The Correct Rights To Create An Admin-w")
 
+
+    def handle_cat(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
+        if os.path.exists(path + command[1]):
+            fin = open(path + command[1], 'r', encoding=self.ENCODING).read()
+            self.send(conn, fin + '-w')
+        else:
+            self.send(conn, "File Doesn't exist-w")
 
     def handle_echo(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
         if command[-2] == '>>':
@@ -165,7 +174,6 @@ class Server:
 
         
     def signup(self, conn: socket.socket):
-        print("Signup")
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
 
@@ -181,6 +189,7 @@ class Server:
 
         for line in users_data:
             fin_username = line.split(' ')[0]
+            fin_password = line.split(' ')[1]
             if username == fin_username:
                 self.send(conn, "Account Already Exists-w")
                 self.signup(conn)
