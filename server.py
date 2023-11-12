@@ -48,9 +48,14 @@ class Server:
                 self.handle_set(command, user_name, user_rights, conn)
             elif command[0] == 'add-admin':
                 self.handle_admin(command, user_rights, conn)
+            elif command[0] == 'log-out':
+                user_name = "Guest"
+                user_rights = 'user'
             elif command[0] == 'cat':
                 self.handle_cat(command, path, user_name, user_rights, conn)
-            elif command[0] == "kill" or command[0] == "k":
+            elif command[0] == 'help':
+                self.handle_help()
+            elif command[0] == 'kill' or command[0] == 'k':
                 self.send(conn, "Destroy Client")
                 print(f"{user_rights} {user_name} Disconnected")
             else:
@@ -172,28 +177,61 @@ class Server:
                         return (True, 'reader', index)
         return (False, None, None)
 
+
+    def handle_help(self):
+        commands = ['',
+                    'echo <message> - send a message to all the users that are connected',
+                    'echo <message> >> <file_name> - send a message to the server and save it in a file',
+                    'create <repo|file> <name>',
+                    'set <repo> <collaborators|readers> <name|*>',
+                    'add-admin <user_name>',
+                    'cat <file_name>',
+                    'log-out - log out of the current account',
+                    'kill - Quit the program',
+                    '']
+        
+        print('-' * 50)
+        for command in commands:
+            print(command)
+        print('-' * 50)
+
         
     def signup(self, conn: socket.socket):
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
 
-        users_file_name = "login.txt"
-    
         try:
-            users_file = open(users_file_name, 'r', encoding = self.ENCODING)
+            users_file = open(self.USERS_FILE_NAME, 'r', encoding = self.ENCODING)
         except FileNotFoundError:
             print("User file not found, creating one")
-            users_file = open(users_file_name, 'w+', encoding = self.ENCODING)
+            users_file = open(self.USERS_FILE_NAME, 'w+', encoding = self.ENCODING)
             
         users_data = users_file.readlines()
+
+        rewrite_line = ''
+        new_line = ''
 
         for line in users_data:
             fin_username = line.split(' ')[0]
             fin_password = line.split(' ')[1]
             if username == fin_username:
-                self.send(conn, "Account Already Exists-w")
-                self.signup(conn)
-                return
+                if fin_password == 'NONE':
+                    rewrite_line = line
+                    new_line = f'{fin_username} {fin_password} admin'
+                    return
+                else:
+                    self.send(conn, "Account Already Exists-w")
+                    self.signup(conn)
+                    return
+                   
+        if rewrite_line != '':
+            with open(self.USERS_FILE_NAME, 'w', encoding=self.ENCODING) as fout:
+                for line in users_data:
+                    if line.strip('\n') != rewrite_line:
+                        fout.write(line)
+                    else:
+                        fout.write(new_line)
+                
         
         users_file = open(users_file_name, 'a', encoding = self.ENCODING)
         users_file.write(credentials + ' user\n')
