@@ -1,5 +1,6 @@
 import socket, os, time
 from typing import List
+from db import Mongo
 
 class Server:
     BUFFER_SIZE = 4096
@@ -10,6 +11,7 @@ class Server:
     def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.addr = (ip, port)
+        self.database = Mongo()
         
 
     def run(self):
@@ -199,8 +201,9 @@ class Server:
     def signup(self, conn: socket.socket):
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
+        password = credentials.split(' ')[1]
 
-        try:
+        '''try:
             users_file = open(self.USERS_FILE_NAME, 'r', encoding = self.ENCODING)
         except FileNotFoundError:
             print("User file not found, creating one")
@@ -236,7 +239,15 @@ class Server:
         users_file = open(users_file_name, 'a', encoding = self.ENCODING)
         users_file.write(credentials + ' user\n')
         users_file.close()
-        self.send(conn, "Account Created Successfully-w")
+        self.send(conn, "Account Created Successfully-w")'''
+
+        if self.database.search_name(username):
+            self.send(conn, "Account Already Exists-w")
+            self.signup(conn)
+            self.signup()
+        else:
+            self.add_user(username, password, "user")
+            self.send(conn, "Account Created Successfully-w")
 
 
     def login(self, conn: socket.socket, count: int = 0):
@@ -245,7 +256,7 @@ class Server:
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
 
-        try:
+        '''try:
             users_file = open(self.USERS_FILE_NAME, 'r', encoding= self.ENCODING)
 
         except FileNotFoundError:
@@ -262,7 +273,20 @@ class Server:
                     user_rights = data[2][0:len(data[2]) - 1] #\n at the end of data[2]
                     time.sleep(.1)
                     self.send(conn, user_rights) #User rights
-                    return (username, user_rights)
+                    return (username, user_rights)'''
+        
+        resp = self.database.search_name_pwd(username, password)
+        print(resp)
+        if resp:
+            self.send(conn, "Logged In Successfully-w")
+            is_admin = self.database.is_admin(username)
+            if is_admin:
+                user_rights = "admin"
+            else:
+                user_rights = "user"
+            time.sleep(.1)
+            self.send(conn, user_rights)
+            return (username, user_rights)
                 
         if count <= 2:
             self.send(conn, "Wrong Credentials-w")

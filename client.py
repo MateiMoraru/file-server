@@ -58,7 +58,7 @@ class Client:
 
         confirmation = self.recv()
 
-        if confirmation == "Account Already Exists":
+        if "Account Already Exists" in confirmation:
             print(f"{confirmation}, Try Again")
             self.signup()
 
