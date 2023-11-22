@@ -1,9 +1,42 @@
 import pymongo
+from typing import List
 
 class Mongo:
     def __init__(self, addr:str="mongodb://localhost:27017/"):
         self.client = pymongo.MongoClient(addr)
         self.users = self.client["File-server"]["users"]
+        self.file_system = self.client["File-server"]["file-system"]
+
+    def create_repo(self, repo_name:str, user_name:str):
+        dict = {
+            "name": repo_name,
+            "creator": user_name, 
+            "collaborators": [user_name], 
+            "readers": [user_name]
+            }
+        self.file_system.insert_one(dict)
+
+    def set_collaborators(self, repo_name:str, collaborators:List[str]):
+        repo = self.file_system.find_one({"name": repo_name})
+        repo.update({"$set": {"collaborators": collaborators, "readers": collaborators}})
+
+    def set_readers(self, repo_name:str, readers:List[str]):
+        repo = self.file_system.find_one({"name": repo_name})
+        repo.update({"$set": {"readers": readers}})
+
+    def get_readers(self, repo_name:str):
+        return self.file_system.find_one({"name": repo_name})["readers"]
+    
+    def get_collaborators(self, repo_name:str):
+        return self.file_system.find_one({"name": repo_name})["collaborators"]
+
+    def add_user(self, name:str, password:str, rights:str):
+        data = {
+            "name": name, 
+            "password": password, 
+            "rights": rights
+            }
+        self.users.insert_one(data)
 
     def search_name(self, name:str):
         return self.users.find_one({"name": name}) != None
@@ -18,12 +51,9 @@ class Mongo:
         return self.users.find_one({"name": name})["password"] == "NotInitialised"
     
     def set_password(self, name:str, password:str):
-        self.users.find_one({"name": name}).update({"$set": {"password": password}})
+        user = self.users.find_one({"name": name})
+        user.update({"$set": {"password": password}})
     
     def add_empty_user(self, name:str, rights:str="user"):
         data = {"name": name, "password": "NotInitialised", "rights": rights}
-        self.users.insert_one(data)
-
-    def add_user(self, name:str, password:str, rights:str):
-        data = {"name": name, "password": password, "rights": rights}
         self.users.insert_one(data)

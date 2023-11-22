@@ -136,23 +136,23 @@ class Server:
     def handle_set(self, command: List[str], user_name, user_rights, conn: socket.socket):
         if len(command) < 4:
             print("Wrong command usage")
-            self.send(conn, "Wrong command usage.\n Try running: set <repo_name> <collaborators|readers> <*|user_name>-w")
-        rights = self.access_dir(command[1], user_name, user_rights)
+            self.send(conn, "Wrong command usage.\n Try running: set <repo_name> <collaborators|readers> <*|user_names>-w")
+        repo = command[1]
+        rights = self.access_dir(repo, user_name, user_rights)
         print(rights)
         if rights[0] and rights[1] != 'reader':
-            if command[2] == 'collaborator':
-                repo_rights_in = open(self.REPO_RIGHTS_FILE_NAME, 'r', encoding=self.ENCODING)
-                data = repo_rights_in[rights[2]]
-                t_data = data.split(' ')
-                new_data = t_data[0] + ' ' + t_data[1] + ' ' + command[3] + ' ' + t_data[2] + ' ' + t_data[3]
-                repo_rights_in[rights[2]] = new_data
-                print(new_data)
-
-                repo_rights_out = open(self.REPO_RIGHTS_FILE_NAME, 'w', encoding=self.ENCODING)
-                repo_rights_out.write(repo_rights_in)
-                repo_rights_in.close()
-                repo_rights_out.close()
-                self.send(conn, f"Successfully set the collaborators to: {command[3]}")
+            if command[2] == 'collaborators':
+                collaborators = []
+                if len(command) > 3:
+                    for i in range(3, len(command)):
+                        collaborators.append(command[i])
+                self.database.set_collaborators(repo, collaborators)
+            if command[2] == 'readers':
+                readers = []
+                if len(command) > 3:
+                    for i in range(3, len(command)):
+                        readers.append(command[i])
+                self.database.set_readers(repo, readers)
 
     
     def handle_cat_database(self, user_rights: str, conn: socket.socket):
@@ -167,26 +167,18 @@ class Server:
             self.send(conn, database)
 
 
-    def access_dir(self, path: str, user_name: str, user_rights: str): #TODO: split the path by "/" in order to check the correct directory 
+    def access_dir(self, repo: str, user_name: str, user_rights: str): #TODO: split the path by "/" in order to check the correct directory 
         index = -1
         if user_rights == 'admin':
-            return (True, 'admin', None)
+            return (True, 'admin') #(can-acces, rights, index??)
         else:
-            repo_rights_file = open(self.REPO_RIGHTS_FILE_NAME, 'r', encoding=self.ENCODING)
-            repo_rights = repo_rights_file.readlines()
-            repo_rights_file.close()
-            print("aualeu")
-            for line in repo_rights:
-                index += 1
-                print(line, user_name in line)
-                if path in line: #Exista cazuri cu erori dar nu stau acm sa le repar
-                    collaborators = line.split(' ')[2]
-                    readers = line.split(' ')[4]
-                    if user_name in collaborators or collaborators == '*':
-                        return (True, 'collaborator', index)
-                    elif user_name in readers or readers == '*':
-                        return (True, 'reader', index)
-        return (False, None, None)
+            collaborators = self.database.get_collaborators(repo)
+            if user_name in collaborators:
+                return (True, 'collaborator')
+            readers = self.database.get_readers(repo)
+            if user_name in readers:
+                return (True, 'reader')
+        return (False, None)
 
 
     def handle_help(self):
