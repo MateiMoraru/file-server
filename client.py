@@ -37,9 +37,7 @@ class Client:
                 self.send(command)
 
                 response = self.recv()
-                if '-w' in response:
-                    response = response[0:len(response) - 2]
-                    print(response)
+                self.process_recv(response)
                 
                 if response == "Destroy Client":
                     self.socket.close()
@@ -77,13 +75,16 @@ class Client:
 
         self.send(credentials)
         confirmation = self.recv()
+        self.process_recv(confirmation)
+        if "Welcome" in confirmation:
+            confirmation = self.recv()
+            self.process_recv(confirmation)
+        
         if "Logged In Successfully" in confirmation:
             self.user_rights = self.recv()
             self.user_name = username
             print(self.user_name, self.user_rights)
-
             print(f"Logged In Successfully, With {self.user_rights} Rights.\n")
-
         elif confirmation == "Wrong Credentials":
             print("The Credentials You Entered Weren't Found In Our Database.\n Try Again.\n")
             self.login()
@@ -101,6 +102,12 @@ class Client:
         
         return True
     
+
+    def process_recv(self, response):
+        if '-w' in response:
+            response = response[0:len(response) - 2]
+            print(response)
+
 
     def recv(self):
         try:

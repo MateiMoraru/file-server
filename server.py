@@ -5,8 +5,6 @@ from db import Mongo
 class Server:
     BUFFER_SIZE = 4096
     ENCODING = "UTF-8"
-    REPO_RIGHTS_FILE_NAME = "repo_rights.txt"
-    USERS_FILE_NAME = "login.txt"
 
     def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -26,7 +24,6 @@ class Server:
 
 
     def handle_conn(self, conn: socket.socket):
-        logged = False
         user_name = "None"
         user_rights = "None"
         path = 'server/'
@@ -44,17 +41,19 @@ class Server:
 
             if command[0] == 'echo':
                 self.handle_echo(command, path, user_name, user_rights, conn)
-            elif command[0] == "create":
+            elif command[0] == 'create':
                 self.handle_create(command, path, user_name, conn)
             elif command[0] == 'set':
                 self.handle_set(command, user_name, user_rights, conn)
             elif command[0] == 'add-admin':
                 self.handle_admin(command, user_rights, conn)
             elif command[0] == 'log-out':
-                user_name = "Guest"
+                user_name = 'Guest'
                 user_rights = 'user'
             elif command[0] == 'cat':
                 self.handle_cat(command, path, user_name, user_rights, conn)
+            elif command[0] == 'cat-database':
+                self.handle_cat_database(user_rights, conn)
             elif command[0] == 'help':
                 self.handle_help()
             elif command[0] == 'kill' or command[0] == 'k':
@@ -66,16 +65,14 @@ class Server:
 
     def handle_admin(self, command: List[str], user_rights: str, conn: socket.socket):
         if user_rights == 'admin':
-            users_file = open(self.USERS_FILE_NAME, 'w+', encoding=self.ENCODING)
-            if command[1] in users_file.readlines():
+            if self.database.search_name(command[1]):
                 self.send(conn, "An Account With The Same Username Already Exists-w")
                 return
             
-            new_user = f'{command[1]} NONE admin'
-            users_file.write(new_user)
-            self.send(conn, f"Admin created. When Opening The Client As {command[1]}, Sign Up As You Need To Specify Your Password-w")
+            self.database.add_empty_user(command[1], "admin")
+            self.send(conn, f"Admin created. When Opening The Client As {command[1]}, Log In, Specifying Your Password, As You Need To Specify Your Password-w")
         else:
-            self.send(conn, "You Don't Have The Correct Rights To Create An Admin-w")
+            self.send(conn, "You Don't Have The Correct Rights To Create An Admin Account-w")
 
 
     def handle_cat(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
@@ -157,6 +154,18 @@ class Server:
                 repo_rights_out.close()
                 self.send(conn, f"Successfully set the collaborators to: {command[3]}")
 
+    
+    def handle_cat_database(self, user_rights: str, conn: socket.socket):
+        if user_rights == 'user':
+            self.send(conn, "You Don't Have The Correct Rights In Order To Run This Command-w")
+        else:
+            database = ""
+            for document in self.database.users.find():
+                print(document)
+                database += str(document) + '\n'
+            database += '-w'
+            self.send(conn, database)
+
 
     def access_dir(self, path: str, user_name: str, user_rights: str): #TODO: split the path by "/" in order to check the correct directory 
         index = -1
@@ -203,50 +212,12 @@ class Server:
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
 
-        '''try:
-            users_file = open(self.USERS_FILE_NAME, 'r', encoding = self.ENCODING)
-        except FileNotFoundError:
-            print("User file not found, creating one")
-            users_file = open(self.USERS_FILE_NAME, 'w+', encoding = self.ENCODING)
-            
-        users_data = users_file.readlines()
-
-        rewrite_line = ''
-        new_line = ''
-
-        for line in users_data:
-            fin_username = line.split(' ')[0]
-            fin_password = line.split(' ')[1]
-            if username == fin_username:
-                if fin_password == 'NONE':
-                    rewrite_line = line
-                    new_line = f'{fin_username} {fin_password} admin'
-                    return
-                else:
-                    self.send(conn, "Account Already Exists-w")
-                    self.signup(conn)
-                    return
-                   
-        if rewrite_line != '':
-            with open(self.USERS_FILE_NAME, 'w', encoding=self.ENCODING) as fout:
-                for line in users_data:
-                    if line.strip('\n') != rewrite_line:
-                        fout.write(line)
-                    else:
-                        fout.write(new_line)
-                
-        
-        users_file = open(users_file_name, 'a', encoding = self.ENCODING)
-        users_file.write(credentials + ' user\n')
-        users_file.close()
-        self.send(conn, "Account Created Successfully-w")'''
-
         if self.database.search_name(username):
             self.send(conn, "Account Already Exists-w")
             self.signup(conn)
             self.signup()
         else:
-            self.add_user(username, password, "user")
+            self.database.add_user(username, password, "user")
             self.send(conn, "Account Created Successfully-w")
 
 
@@ -255,39 +226,24 @@ class Server:
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
-
-        '''try:
-            users_file = open(self.USERS_FILE_NAME, 'r', encoding= self.ENCODING)
-
-        except FileNotFoundError:
-            print(FileNotFoundError)
-            
-        users_data = users_file.readlines()
-
-        
-        for line in users_data:
-            if username in line:
-                data = line.split(' ')
-                if username == data[0] and password == data[1]:
-                    self.send(conn, "Logged In Successfully-w")
-                    user_rights = data[2][0:len(data[2]) - 1] #\n at the end of data[2]
-                    time.sleep(.1)
-                    self.send(conn, user_rights) #User rights
-                    return (username, user_rights)'''
         
         resp = self.database.search_name_pwd(username, password)
-        print(resp)
-        if resp:
+
+        if self.database.search_name(username) and self.database.is_empty(username):
+            self.database.set_password(username, password)
+            self.send(conn, f"Welcome {username}, Your Account Has Successfully Been Created-w")
+            time.sleep(.1)
             self.send(conn, "Logged In Successfully-w")
-            is_admin = self.database.is_admin(username)
-            if is_admin:
-                user_rights = "admin"
-            else:
-                user_rights = "user"
+            user_rights = self.database.is_admin(username)
             time.sleep(.1)
             self.send(conn, user_rights)
             return (username, user_rights)
-                
+        if resp:
+            self.send(conn, "Logged In Successfully-w")
+            user_rights = self.database.is_admin(username)
+            time.sleep(.1)
+            self.send(conn, str(user_rights))
+            return (username, user_rights)
         if count <= 2:
             self.send(conn, "Wrong Credentials-w")
 
