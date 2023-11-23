@@ -7,10 +7,10 @@ Before running the actual code, make sure you have all the libraries installed b
 After launching **server.py**, you can go ahead and run **client.py** which will make you choose wheather you wish to create a new account or log into an existing one.
 
 There are two types of users:
-- *default users* `can create/edit/read the files that are marked as public or the files that specifically have the user as one of the collaborators/readers`;
-- *admins* `have access to any files and can create/edit/read every`.
+- *default users* - can create/edit/read the files that are marked as public or the files that specifically have the user as one of the collaborators/readers;
+- *admins* - have access to any files and can create/edit/read every.
 
-After logging in, try running `help` in order to take a look at the possible commands you can run.
+After logging in, try running `help` in order to take a look at the possible commands you can run, or take a look below!
 
 Commands:
 - `echo <text>` - sends a text to all the users that are connected to the network;
