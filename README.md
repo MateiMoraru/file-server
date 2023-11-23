@@ -11,3 +11,15 @@ There are two types of users:
 - *admins* `have access to any files and can create/edit/read every`.
 
 After logging in, try running `help` in order to take a look at the possible commands you can run.
+
+Commands:
+- `echo <text>` - sends a text to all the users that are connected to the network;
+- `echo <text> >> <file_name>` - creates a document and writes to it;
+- `cd <path>` - checks weather you have the necessary rights in order to navigate to that directory;
+- `create <repo|file> <name>` - creates a repo/file in your desired destination;
+- `set <repo> <collaborators|readers> <name|*>` - adds/removes collaborators/readers from your desired repo;
+- `add-admin <user_name>` - creates a new admin account, that will be activated when that user logs in, as it requires them to specify their password;
+- `cat <file_name>` - reads a file;
+- `cat-database` - reads the users and file-system database;
+- `log-out` - makes you be logged in as a guest with virtually no rights;
+- `kill` - quits the program.
