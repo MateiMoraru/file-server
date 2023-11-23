@@ -11,6 +11,7 @@ class Client:
 
         self.user_name = "None"
         self.user_rights = "None"
+        self.path = ""
 
     
     def connect(self):
@@ -32,12 +33,15 @@ class Client:
         print(self.user_rights)
         if self.user_rights != "None":
             while True:
-                command = input(f"{self.user_name}> ")
+                command = input(f"{self.path}> ")
 
                 self.send(command)
 
                 response = self.recv()
                 self.process_recv(response)
+
+                if command.split(' ')[0] == 'cd' and 'You' not in response:
+                    self.path = response
                 
                 if response == "Destroy Client":
                     self.socket.close()

@@ -27,6 +27,7 @@ class Server:
         user_name = "None"
         user_rights = "None"
         path = 'server/'
+        current_repo = ''
 
         signup = self.recv(conn)
         
@@ -37,6 +38,7 @@ class Server:
             user_name, user_rights = self.login(conn)
 
         while True:
+            current_repo = path.replace('server/', '')
             command = self.recv(conn).split(' ')
 
             if command[0] == 'echo':
@@ -51,9 +53,12 @@ class Server:
                 user_name = 'Guest'
                 user_rights = 'user'
             elif command[0] == 'cat':
-                self.handle_cat(command, path, user_name, user_rights, conn)
+                self.handle_cat(command, path, current_repo, user_name, user_rights, conn)
             elif command[0] == 'cat-database':
                 self.handle_cat_database(user_rights, conn)
+            elif command[0] == 'cd':
+                current_repo = self.handle_change_dir(current_repo, command, user_name, user_rights, conn)
+                path += current_repo
             elif command[0] == 'help':
                 self.handle_help()
             elif command[0] == 'kill' or command[0] == 'k':
@@ -61,6 +66,21 @@ class Server:
                 print(f"{user_rights} {user_name} Disconnected")
             else:
                 self.send(conn, "Unknown Command")
+
+    
+    def handle_change_dir(self, path:str, command: List[str], user_name:str, user_rights: str, conn: socket.socket):
+        if len(path) > 1: #Doesn't need to check for admin rights
+            path += command[1] + '/'
+            self.send(conn, f"{path}")
+            return path
+        else:
+            access_dir = self.access_dir(command[1], user_name, user_rights)
+            if access_dir[0] and access_dir[1]:
+                path += command[1] + '/'
+                self.send(conn, f"{path}")
+                return path
+            else:
+                self.send(conn, "You Aren't Allowed To Navigate Here-w")
 
 
     def handle_admin(self, command: List[str], user_rights: str, conn: socket.socket):
@@ -75,12 +95,20 @@ class Server:
             self.send(conn, "You Don't Have The Correct Rights To Create An Admin Account-w")
 
 
-    def handle_cat(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
+    def handle_cat(self, command: List[str], path: str, current_repo: str, user_name: str, user_rights: str, conn: socket.socket):
         if os.path.exists(path + command[1]):
-            fin = open(path + command[1], 'r', encoding=self.ENCODING).read()
-            self.send(conn, fin + '-w')
+            if len(current_repo) > 1 and '/' not in command[1]:
+                access_dir = self.access_dir(current_repo, user_name, user_rights)
+                if access_dir[0] and access_dir[1]:
+                    fin = open(path + command[1], 'r', encoding=self.ENCODING).read()
+                    self.send(conn, fin + '-w')
+                else:
+                    self.send(conn, "You Aren't Allowed to read this file-w")
+            else:
+                self.send(conn, "You Must Navigate To The Head Repo Using 'cd' Firstly-w")
         else:
             self.send(conn, "File Doesn't exist-w")
+            
 
     def handle_echo(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
         if command[-2] == '>>':
@@ -92,7 +120,7 @@ class Server:
             else:
                 access_dir = (True)
 
-            if access_dir[0]:
+            if access_dir[0] and access_dir[1] == "collaborator":
                 if os.path.exists(path + file_name):
                     fout = open(path + file_name, 'a', encoding=self.ENCODING)
                     self.send(conn, f"Added To {file_name}-w")
@@ -170,7 +198,7 @@ class Server:
     def access_dir(self, repo: str, user_name: str, user_rights: str): #TODO: split the path by "/" in order to check the correct directory 
         index = -1
         if user_rights == 'admin':
-            return (True, 'admin') #(can-acces, rights, index??)
+            return (True, 'collaborator') #(can-access, rights)
         else:
             collaborators = self.database.get_collaborators(repo)
             if user_name in collaborators:
@@ -178,7 +206,7 @@ class Server:
             readers = self.database.get_readers(repo)
             if user_name in readers:
                 return (True, 'reader')
-        return (False, None)
+        return (False, False)
 
 
     def handle_help(self):
