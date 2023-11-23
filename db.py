@@ -17,12 +17,11 @@ class Mongo:
         self.file_system.insert_one(dict)
 
     def set_collaborators(self, repo_name:str, collaborators:List[str]):
-        repo = self.file_system.find_one({"name": repo_name})
-        repo.update({"$set": {"collaborators": collaborators, "readers": collaborators}})
+        for user in collaborators:
+            self.file_system.find_one_and_update({"name": repo_name}, {"$push": {"collaborators": user}})
 
     def set_readers(self, repo_name:str, readers:List[str]):
-        repo = self.file_system.find_one({"name": repo_name})
-        repo.update({"$set": {"readers": readers}})
+        self.file_system.find_one_and_update({"name": repo_name}, {"$push": {"readers": readers}})
 
     def get_readers(self, repo_name:str):
         return self.file_system.find_one({"name": repo_name})["readers"]

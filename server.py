@@ -58,7 +58,8 @@ class Server:
                 self.handle_cat_database(user_rights, conn)
             elif command[0] == 'cd':
                 current_repo = self.handle_change_dir(current_repo, command, user_name, user_rights, conn)
-                path += current_repo
+                if current_repo != None:
+                    path += current_repo
             elif command[0] == 'help':
                 self.handle_help()
             elif command[0] == 'kill' or command[0] == 'k':
@@ -81,6 +82,7 @@ class Server:
                 return path
             else:
                 self.send(conn, "You Aren't Allowed To Navigate Here-w")
+                return path
 
 
     def handle_admin(self, command: List[str], user_rights: str, conn: socket.socket):
@@ -108,7 +110,7 @@ class Server:
                 self.send(conn, "You Must Navigate To The Head Repo Using 'cd' Firstly-w")
         else:
             self.send(conn, "File Doesn't exist-w")
-            
+
 
     def handle_echo(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
         if command[-2] == '>>':
@@ -148,11 +150,9 @@ class Server:
                 self.send(conn, "Repository already exists-w")
             else:
                 os.mkdir(path + file_name)
-                repo_rights_out = open(self.REPO_RIGHTS_FILE_NAME, 'a', encoding=self.ENCODING)
                 if '/' in file_name:
                     pass
-                data = f"\n{file_name} collaborators {user_name} readers {user_name}"
-                repo_rights_out.write(data)
+                self.database.create_repo(file_name, user_name)
                 self.send(conn, f"Created repo {file_name}-w")
         elif command[1] == "file":
             open(path + file_name, 'w', encoding=self.ENCODING).close()
@@ -175,12 +175,14 @@ class Server:
                     for i in range(3, len(command)):
                         collaborators.append(command[i])
                 self.database.set_collaborators(repo, collaborators)
+                self.send(conn, f"{collaborators} Are Now Collaborators-w")
             if command[2] == 'readers':
                 readers = []
                 if len(command) > 3:
                     for i in range(3, len(command)):
                         readers.append(command[i])
                 self.database.set_readers(repo, readers)
+                self.send(conn, f"{readers} Are Now Readers-w")
 
     
     def handle_cat_database(self, user_rights: str, conn: socket.socket):
@@ -188,15 +190,19 @@ class Server:
             self.send(conn, "You Don't Have The Correct Rights In Order To Run This Command-w")
         else:
             database = ""
+            database += "USERS:\n\n"
             for document in self.database.users.find():
+                print(document)
+                database += str(document) + '\n'
+            database += "FILE-SYSTEM:\n\n"
+            for document in self.database.file_system.find():
                 print(document)
                 database += str(document) + '\n'
             database += '-w'
             self.send(conn, database)
 
 
-    def access_dir(self, repo: str, user_name: str, user_rights: str): #TODO: split the path by "/" in order to check the correct directory 
-        index = -1
+    def access_dir(self, repo: str, user_name: str, user_rights: str):
         if user_rights == 'admin':
             return (True, 'collaborator') #(can-access, rights)
         else:
