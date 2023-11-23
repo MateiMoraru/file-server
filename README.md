@@ -16,6 +16,9 @@ Commands:
 - `echo <text>` - sends a text to all the users that are connected to the network;
 - `echo <text> >> <file_name>` - creates a document and writes to it;
 - `cd <path>` - checks weather you have the necessary rights in order to navigate to that directory;
+- `ls` - lists the directories and files of your current working directory;
+- `send-file <file_name/s>` - sends and saves files in your working directory;
+- `get-file <file_name/s>` - downloads and saves files in a new directory "Downloads" 
 - `create <repo|file> <name>` - creates a repo/file in your desired destination;
 - `set <repo> <collaborators|readers> <name|*>` - adds/removes collaborators/readers from your desired repo;
 - `add-admin <user_name>` - creates a new admin account, that will be activated when that user logs in, as it requires them to specify their password;

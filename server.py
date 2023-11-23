@@ -5,6 +5,8 @@ from db import Mongo
 class Server:
     BUFFER_SIZE = 4096
     ENCODING = "UTF-8"
+    END_OF_FILE = "!END!OF!FILE!"
+    END_OF_STREAM = "!END!OF!STREAM!"
 
     def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -38,8 +40,9 @@ class Server:
             user_name, user_rights = self.login(conn)
 
         while True:
-            current_repo = path.replace('server/', '')
+            #current_repo = path.replace('server/', '')
             command = self.recv(conn).split(' ')
+            print(command)
 
             if command[0] == 'echo':
                 self.handle_echo(command, path, user_name, user_rights, conn)
@@ -60,6 +63,10 @@ class Server:
                 current_repo = self.handle_change_dir(current_repo, command, user_name, user_rights, conn)
                 if current_repo != None:
                     path += current_repo
+            elif command[0] == 'send-file':
+                self.handle_get_file(conn, path)
+            elif command[1] == 'get-file':
+                self.handle_send_file(command, conn)
             elif command[0] == 'help':
                 self.handle_help()
             elif command[0] == 'kill' or command[0] == 'k':
@@ -70,13 +77,13 @@ class Server:
 
     
     def handle_change_dir(self, path:str, command: List[str], user_name:str, user_rights: str, conn: socket.socket):
-        if len(path) > 1: #Doesn't need to check for admin rights
+        if len(path) > 1: 
             path += command[1] + '/'
             self.send(conn, f"{path}")
             return path
         else:
             access_dir = self.access_dir(command[1], user_name, user_rights)
-            if access_dir[0] and access_dir[1]:
+            if access_dir[0] and access_dir[1] != None:
                 path += command[1] + '/'
                 self.send(conn, f"{path}")
                 return path
@@ -85,7 +92,7 @@ class Server:
                 return path
 
 
-    def handle_admin(self, command: List[str], user_rights: str, conn: socket.socket):
+    def handle_add_admin(self, command: List[str], user_rights: str, conn: socket.socket):
         if user_rights == 'admin':
             if self.database.search_name(command[1]):
                 self.send(conn, "An Account With The Same Username Already Exists-w")
@@ -101,7 +108,7 @@ class Server:
         if os.path.exists(path + command[1]):
             if len(current_repo) > 1 and '/' not in command[1]:
                 access_dir = self.access_dir(current_repo, user_name, user_rights)
-                if access_dir[0] and access_dir[1]:
+                if access_dir[0] and access_dir[1] != None:
                     fin = open(path + command[1], 'r', encoding=self.ENCODING).read()
                     self.send(conn, fin + '-w')
                 else:
@@ -119,7 +126,7 @@ class Server:
                 file_dir = file_name.split('/')[0]
                 access_dir = self.access_dir(file_dir, user_name, user_rights)
                 print(access_dir)
-            else:
+            elif path == 'server/':
                 access_dir = (True)
 
             if access_dir[0] and access_dir[1] == "collaborator":
@@ -163,11 +170,10 @@ class Server:
 
     def handle_set(self, command: List[str], user_name, user_rights, conn: socket.socket):
         if len(command) < 4:
-            print("Wrong command usage")
             self.send(conn, "Wrong command usage.\n Try running: set <repo_name> <collaborators|readers> <*|user_names>-w")
+               
         repo = command[1]
         rights = self.access_dir(repo, user_name, user_rights)
-        print(rights)
         if rights[0] and rights[1] != 'reader':
             if command[2] == 'collaborators':
                 collaborators = []
@@ -201,6 +207,50 @@ class Server:
             database += '-w'
             self.send(conn, database)
 
+    
+    def handle_get_file(self, conn, path):
+        data = self.recv(conn)
+        while self.END_OF_STREAM not in data:
+            file_name = data
+            file = ""
+            data = self.recv(conn)
+            while self.END_OF_FILE not in data:
+                file += data
+                data = self.recv(conn)
+        
+            fout = open(path + file_name, 'w')
+            fout.write(file)
+            fout.close()
+            if self.END_OF_STREAM not in data:
+                break
+        self.send(conn, "Finished transferring file/s-w")
+
+    def handle_send_file(self, command, conn):
+        file_name = command[1:len(command)]
+        for file in file_name:
+            self.send(file)
+            data = open(file, 'r').readlines()
+            data = self.split_file_into_chunks(data)
+
+            for chunk in data:
+                self.send(chunk)
+                time.sleep(.1)
+            self.send(self.END_OF_FILE)
+            time.sleep(.1)
+        self.send(self.END_OF_STREAM)
+
+    
+    def split_file_into_chunks(self, data):
+        if len(data) > self.BUFFER_SIZE:
+            new_data = []
+            last_i = 0
+            for i in range(0, len(data), self.BUFFER_SIZE):
+                new_data.append(data[last_i:i])
+                last_i = i
+            return new_data
+        else:
+            return data
+
 
     def access_dir(self, repo: str, user_name: str, user_rights: str):
         if user_rights == 'admin':
@@ -212,7 +262,7 @@ class Server:
             readers = self.database.get_readers(repo)
             if user_name in readers:
                 return (True, 'reader')
-        return (False, False)
+        return (False, None)
 
 
     def handle_help(self):
@@ -259,7 +309,7 @@ class Server:
             self.database.set_password(username, password)
             self.send(conn, f"Welcome {username}, Your Account Has Successfully Been Created-w")
             time.sleep(.1)
-            self.send(conn, "Logged In Successfully-w")
+            self.send(conn, "Logged In Successfully")
             user_rights = self.database.is_admin(username)
             time.sleep(.1)
             self.send(conn, user_rights)
