@@ -87,13 +87,16 @@ class Client:
     
     def get_file(self):
         data = self.recv()
+        print(data)
         while self.END_OF_STREAM not in data:
             file_name = data
             file = ""
             data = self.recv()
+            print(data)
             while self.END_OF_FILE not in data:
                 file += data
                 data = self.recv()
+            print(data)
 
             os.mkdir("Downloads")
             fout = open("Downloads/" + file_name, 'w')
@@ -101,7 +104,7 @@ class Client:
             fout.close()
             if self.END_OF_STREAM not in data:
                 break
-        self.send("Finished transferring file/s-w")
+        print('Your Files Are Saved In "Downloads/"')
 
 
     def signup(self):
@@ -113,7 +116,10 @@ class Client:
 
         confirmation = self.recv()
 
-        if "Account Already Exists" in confirmation:
+        if "No Password Provided" in confirmation:
+            print(confirmation)
+            self.signup()
+        elif "Account Already Exists" in confirmation:
             print(f"{confirmation}, Try Again")
             self.signup()
 
@@ -131,12 +137,13 @@ class Client:
 
         self.send(credentials)
         confirmation = self.recv()
-        self.process_recv(confirmation)
-        if "Welcome" in confirmation:
+        if "No Password Provided" in confirmation:
+            print(confirmation)
+            self.login()
+        elif "Welcome" in confirmation:
             confirmation = self.recv()
             self.process_recv(confirmation)
-        
-        if "Logged In Successfully" in confirmation:
+        elif "Logged In Successfully" in confirmation:
             self.user_rights = self.recv()
             self.user_name = username
             print(f"Logged In Successfully, With {self.user_rights} Rights.\n")

@@ -7,11 +7,14 @@ class Server:
     ENCODING = "UTF-8"
     END_OF_FILE = "!END!OF!FILE!"
     END_OF_STREAM = "!END!OF!STREAM!"
+    WRONG_ARGUMENTS_EXCEPTION = "Wrong Command Arguments, Try Running help"
+    NAVIGATION_NO_RIGHTS_EXCEPTION = "You Aren't Allowed To Navigate Here-w"
 
     def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.addr = (ip, port)
         self.database = Mongo()
+        self.listening = True
         
 
     def run(self):
@@ -21,8 +24,11 @@ class Server:
         
         while True:
             conn, addr = self.socket.accept()
-
-            self.handle_conn(conn)
+            print(f"Client Connected From {addr}")
+            try:
+                self.handle_conn(conn)
+            except:
+                print("Client Disconnected")
 
 
     def handle_conn(self, conn: socket.socket):
@@ -39,8 +45,8 @@ class Server:
         else:
             user_name, user_rights = self.login(conn)
 
-        while True:
-            #current_repo = path.replace('server/', '')
+        while self.listening:
+            current_repo = path.replace('server/', '')
             command = self.recv(conn).split(' ')
             print(command)
 
@@ -65,18 +71,25 @@ class Server:
                     path += current_repo
             elif command[0] == 'send-file':
                 self.handle_get_file(conn, path)
-            elif command[1] == 'get-file':
+            elif command[0] == 'get-file':
                 self.handle_send_file(command, conn)
             elif command[0] == 'help':
                 self.handle_help()
             elif command[0] == 'kill' or command[0] == 'k':
                 self.send(conn, "Destroy Client")
                 print(f"{user_rights} {user_name} Disconnected")
+            elif command[0] == 'kill-server' or command[0] == 'shutdown':
+                self.shutdown(conn)
             else:
                 self.send(conn, "Unknown Command")
 
     
     def handle_change_dir(self, path:str, command: List[str], user_name:str, user_rights: str, conn: socket.socket):
+        if len(command) < 2:
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
+        
         if len(path) > 1: 
             path += command[1] + '/'
             self.send(conn, f"{path}")
@@ -88,11 +101,15 @@ class Server:
                 self.send(conn, f"{path}")
                 return path
             else:
-                self.send(conn, "You Aren't Allowed To Navigate Here-w")
+                self.send(conn, self.NAVIGATION_NO_RIGHTS_EXCEPTION)
                 return path
-
+        
 
     def handle_add_admin(self, command: List[str], user_rights: str, conn: socket.socket):
+        if len(command) < 2:
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
         if user_rights == 'admin':
             if self.database.search_name(command[1]):
                 self.send(conn, "An Account With The Same Username Already Exists-w")
@@ -105,6 +122,11 @@ class Server:
 
 
     def handle_cat(self, command: List[str], path: str, current_repo: str, user_name: str, user_rights: str, conn: socket.socket):
+        if len(command) < 2:
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
+        
         if os.path.exists(path + command[1]):
             if len(current_repo) > 1 and '/' not in command[1]:
                 access_dir = self.access_dir(current_repo, user_name, user_rights)
@@ -112,7 +134,7 @@ class Server:
                     fin = open(path + command[1], 'r', encoding=self.ENCODING).read()
                     self.send(conn, fin + '-w')
                 else:
-                    self.send(conn, "You Aren't Allowed to read this file-w")
+                    self.send(conn, self.NAVIGATION_NO_RIGHTS_EXCEPTION + '-w')
             else:
                 self.send(conn, "You Must Navigate To The Head Repo Using 'cd' Firstly-w")
         else:
@@ -120,6 +142,11 @@ class Server:
 
 
     def handle_echo(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
+        if len(command) < 2:
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
+        
         if command[-2] == '>>':
             file_name = command[-1]
             if '/' in file_name:
@@ -147,8 +174,8 @@ class Server:
 
     def handle_create(self, command: List[str], path: str, user_name: str, conn: socket.socket):
         if len(command) < 3:
-            print("Wrong command usage")
-            self.send(conn, "Wrong command usage-w")
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         
         file_name = command[2]
@@ -168,9 +195,11 @@ class Server:
             self.send(conn, "Wrong Usage, run help-w")
 
 
-    def handle_set(self, command: List[str], user_name, user_rights, conn: socket.socket):
+    def handle_set(self, command: List[str], user_name: str, user_rights: str, conn: socket.socket):
         if len(command) < 4:
-            self.send(conn, "Wrong command usage.\n Try running: set <repo_name> <collaborators|readers> <*|user_names>-w")
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
                
         repo = command[1]
         rights = self.access_dir(repo, user_name, user_rights)
@@ -208,7 +237,7 @@ class Server:
             self.send(conn, database)
 
     
-    def handle_get_file(self, conn, path):
+    def handle_get_file(self, conn: socket.socket, path: str):
         data = self.recv(conn)
         while self.END_OF_STREAM not in data:
             file_name = data
@@ -225,22 +254,27 @@ class Server:
                 break
         self.send(conn, "Finished transferring file/s-w")
 
-    def handle_send_file(self, command, conn):
+    def handle_send_file(self, command: List[str], conn: socket.socket):
+        if len(command) < 2:
+            print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            return
         file_name = command[1:len(command)]
         for file in file_name:
-            self.send(file)
+            self.send(conn, file)
             data = open(file, 'r').readlines()
             data = self.split_file_into_chunks(data)
 
             for chunk in data:
-                self.send(chunk)
+                self.send(conn, chunk)
                 time.sleep(.1)
-            self.send(self.END_OF_FILE)
+            self.send(conn, self.END_OF_FILE)
             time.sleep(.1)
-        self.send(self.END_OF_STREAM)
+        self.send(conn, self.END_OF_STREAM)
+        self.send(conn, "Finished Transferring Files-w")
 
     
-    def split_file_into_chunks(self, data):
+    def split_file_into_chunks(self, data: str):
         if len(data) > self.BUFFER_SIZE:
             new_data = []
             last_i = 0
@@ -287,11 +321,14 @@ class Server:
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
+        if len(password) < 1:
+            print("No Password Provided")
+            self.send("No Password Provided-w")
+            self.signup(conn)
 
         if self.database.search_name(username):
             self.send(conn, "Account Already Exists-w")
             self.signup(conn)
-            self.signup()
         else:
             self.database.add_user(username, password, "user")
             self.send(conn, "Account Created Successfully-w")
@@ -302,6 +339,10 @@ class Server:
         credentials = self.recv(conn)
         username = credentials.split(' ')[0]
         password = credentials.split(' ')[1]
+        if len(password) < 1:
+            print("No Password Provided")
+            self.send(conn, "No Password Provided")
+            self.login(conn)
         
         resp = self.database.search_name_pwd(username, password)
 
@@ -327,6 +368,13 @@ class Server:
         else:
             self.send(conn, "Account Not Recognised-w")
             return False
+        
+    
+    def shutdown(self, conn: socket.socket):
+        self.send(conn, "Destroy Server")
+        print(f"Shutting Down Server")
+        self.listening = False
+        self.socket.close()
 
 
     def send(self, conn: socket.socket, message: str):
