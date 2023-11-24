@@ -1,6 +1,7 @@
 import socket, os, time
 from typing import List
 from db import Mongo
+import threading
 
 class Server:
     BUFFER_SIZE = 4096
@@ -15,6 +16,7 @@ class Server:
         self.addr = (ip, port)
         self.database = Mongo()
         self.listening = True
+        self.connections = []
         
 
     def run(self):
@@ -22,12 +24,15 @@ class Server:
         self.socket.listen()
         print(f"Server Listening For Connections on {self.addr}.")
         
-        while True:
+        while self.listening:
             conn, addr = self.socket.accept()
             print(f"Client Connected From {addr}")
-            try:
-                self.handle_conn(conn)
-            except:
+            self.connections.append(conn)
+            try:    
+                client = threading.Thread(target=self.handle_conn, args=[conn])
+                client.start()
+            except Exception as e:
+                print(e)
                 print("Client Disconnected")
 
 
@@ -45,7 +50,7 @@ class Server:
         else:
             user_name, user_rights = self.login(conn)
 
-        while self.listening:
+        while True:
             current_repo = path.replace('server/', '')
             command = self.recv(conn).split(' ')
             print(command)
@@ -169,7 +174,9 @@ class Server:
         else:
             message = ' '.join(command[1:len(command)])
             print(f'{user_name}> {message}')
-            self.send(conn, f'{user_name}> {message}-w')
+            for user in self.connections:
+                self.send(user, f'{user_name}> {message}-w')
+            #self.socket.sendall(f'{user_name}> {message}-w'.encode(self.ENCODING))
 
 
     def handle_create(self, command: List[str], path: str, user_name: str, conn: socket.socket):
