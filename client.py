@@ -54,6 +54,9 @@ class Client:
                 if response == "Destroy Client":
                     self.socket.close()
                     return
+                elif response == "Destroy Server":
+                    self.socket.close()
+                    return
         else:
             print("Failed To Log In")
 
