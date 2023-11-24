@@ -74,6 +74,8 @@ class Server:
                 current_repo = self.handle_change_dir(current_repo, command, user_name, user_rights, conn)
                 if current_repo != None:
                     path += current_repo
+            elif command[0] == 'ls':
+                self.handle_list(path, current_repo, conn)
             elif command[0] == 'send-file':
                 self.handle_get_file(conn, path)
             elif command[0] == 'get-file':
@@ -108,6 +110,19 @@ class Server:
             else:
                 self.send(conn, self.NAVIGATION_NO_RIGHTS_EXCEPTION)
                 return path
+            
+
+    def handle_list(self, path: str, current_repo: str, conn: socket.socket):
+        directories = os.listdir(path)
+        dirs = ""
+        files = ""
+        for data in directories:
+            if os.path.isfile(path + data):
+                files += data
+            else:
+                dirs += data
+
+        self.send(conn, f"Dirs: {dirs} \nFiles: {files}-w")
         
 
     def handle_add_admin(self, command: List[str], user_rights: str, conn: socket.socket):
