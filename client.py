@@ -9,7 +9,7 @@ class Client:
     END_OF_FILE = "!END!OF!FILE!"
     END_OF_STREAM = "!END!OF!STREAM!"
 
-    def __init__(self, ip: str = "127.0.0.1", port: int = 8080):
+    def __init__(self, ip: str = "127.0.0.1", port: int = 8181):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.settimeout(5)
         self.server_addr = (ip, port)
@@ -24,7 +24,6 @@ class Client:
 
         signup = input("Do You Want To Create An Account? yes/no\n")
         self.send(signup)
-
         if signup == "yes":
             self.signup()
             self.login()
@@ -182,5 +181,5 @@ class Client:
             print(e)
 
 if __name__ == "__main__":
-    client = Client("127.0.0.1", 8080)
+    client = Client("127.0.0.1", 8181)
     client.connect()

@@ -11,7 +11,7 @@ class Server:
     WRONG_ARGUMENTS_EXCEPTION = "Wrong Command Arguments, Try Running help"
     NAVIGATION_NO_RIGHTS_EXCEPTION = "You Aren't Allowed To Navigate Here-w"
 
-    def __init__(self, ip: str = "127.0.0.1", port: int = 8080):        
+    def __init__(self, ip: str = "127.0.0.1", port: int = 8181):        
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.addr = (ip, port)
         self.database = Mongo()
@@ -31,6 +31,7 @@ class Server:
             try:    
                 client = threading.Thread(target=self.handle_conn, args=[conn])
                 client.start()
+                client.join()
             except Exception as e:
                 print(e)
                 print("Client Disconnected")
@@ -62,7 +63,7 @@ class Server:
             elif command[0] == 'set':
                 self.handle_set(command, user_name, user_rights, conn)
             elif command[0] == 'add-admin':
-                self.handle_admin(command, user_rights, conn)
+                self.handle_add_admin(command, user_rights, conn)
             elif command[0] == 'log-out':
                 user_name = 'Guest'
                 user_rights = 'user'
@@ -81,7 +82,8 @@ class Server:
             elif command[0] == 'get-file':
                 self.handle_send_file(command, conn)
             elif command[0] == 'help':
-                self.handle_help()
+                help = self.handle_help()
+                self.send(conn, help)
             elif command[0] == 'kill' or command[0] == 'k':
                 self.send(conn, "Destroy Client")
                 print(f"{user_rights} {user_name} Disconnected")
@@ -94,7 +96,7 @@ class Server:
     def handle_change_dir(self, path:str, command: List[str], user_name:str, user_rights: str, conn: socket.socket):
         if len(command) < 2:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         
         if len(path) > 1: 
@@ -128,7 +130,7 @@ class Server:
     def handle_add_admin(self, command: List[str], user_rights: str, conn: socket.socket):
         if len(command) < 2:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         if user_rights == 'admin':
             if self.database.search_name(command[1]):
@@ -144,7 +146,7 @@ class Server:
     def handle_cat(self, command: List[str], path: str, current_repo: str, user_name: str, user_rights: str, conn: socket.socket):
         if len(command) < 2:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         
         if os.path.exists(path + command[1]):
@@ -164,7 +166,7 @@ class Server:
     def handle_echo(self, command: List[str], path: str, user_name: str, user_rights: str, conn: socket.socket):
         if len(command) < 2:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         
         if command[-2] == '>>':
@@ -197,7 +199,7 @@ class Server:
     def handle_create(self, command: List[str], path: str, user_name: str, conn: socket.socket):
         if len(command) < 3:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         
         file_name = command[2]
@@ -220,7 +222,7 @@ class Server:
     def handle_set(self, command: List[str], user_name: str, user_rights: str, conn: socket.socket):
         if len(command) < 4:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
                
         repo = command[1]
@@ -279,7 +281,7 @@ class Server:
     def handle_send_file(self, command: List[str], conn: socket.socket):
         if len(command) < 2:
             print(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
-            self.send(self.WRONG_ARGUMENTS_EXCEPTION + '-w')
+            self.send(conn, self.WRONG_ARGUMENTS_EXCEPTION + '-w')
             return
         file_name = command[1:len(command)]
         for file in file_name:
@@ -337,6 +339,7 @@ class Server:
         for command in commands:
             print(command)
         print('-' * 50)
+        return command + '-w'
 
         
     def signup(self, conn: socket.socket):
@@ -345,9 +348,10 @@ class Server:
         password = credentials.split(' ')[1]
         if len(password) < 1:
             print("No Password Provided")
-            self.send("No Password Provided-w")
+            self.send(conn, "No Password Provided-w")
             self.signup(conn)
 
+        
         if self.database.search_name(username):
             self.send(conn, "Account Already Exists-w")
             self.signup(conn)
@@ -368,6 +372,9 @@ class Server:
         
         resp = self.database.search_name_pwd(username, password)
 
+        if count <= 2 and resp is None:
+            self.send(conn, "Wrong Credentials-w")
+            return
         if self.database.search_name(username) and self.database.is_empty(username):
             self.database.set_password(username, password)
             self.send(conn, f"Welcome {username}, Your Account Has Successfully Been Created-w")
@@ -383,18 +390,14 @@ class Server:
             time.sleep(.1)
             self.send(conn, str(user_rights))
             return (username, user_rights)
-        if count <= 2:
-            self.send(conn, "Wrong Credentials-w")
-
-            self.login(conn, count + 1)
-        else:
-            self.send(conn, "Account Not Recognised-w")
-            return False
+        
+        self.send(conn, "Account Not Recognised-w")
+        return False
         
     
     def shutdown(self, conn: socket.socket):
         self.send(conn, "Destroy Server")
-        print(f"Shutting Down Server")
+        print("Shutting Down Server")
         self.listening = False
         self.socket.close()
 

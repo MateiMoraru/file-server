@@ -3,7 +3,11 @@ from typing import List
 
 class Mongo:
     def __init__(self, addr:str="mongodb://localhost:27017/"):
-        self.client = pymongo.MongoClient(addr)
+        try:
+            self.client = pymongo.MongoClient(addr)
+            self.client.server_info()
+        except pymongo.errors.ServerSelectionTimeoutError as err:
+            print(err)
         self.users = self.client["File-server"]["users"]
         self.file_system = self.client["File-server"]["file-system"]
 
@@ -44,7 +48,10 @@ class Mongo:
         return self.users.find({'name': name, 'password': pwd}) != None
     
     def is_admin(self, name:str):
-        return str(self.users.find_one({"name": name})["rights"])
+        user = self.users.find_one({"name": name})
+        if user == None:
+            return None
+        return str(user["rights"])
     
     def is_empty(self, name:str):
         return self.users.find_one({"name": name})["password"] == "NotInitialised"
